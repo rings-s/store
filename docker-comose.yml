@@ -1,0 +1,55 @@
+version: '3.12'
+services:
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=online_store_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.dev
+    depends_on:
+      - db
+      - redis
+
+  celery:
+    build: .
+    command: celery -A online_store worker -l info
+    volumes:
+      - .:/code
+    env_file:
+      - .env.dev
+    depends_on:
+      - db
+      - redis
+
+  celery-beat:
+    build: .
+    command: celery -A online_store beat -l info
+    volumes:
+      - .:/code
+    env_file:
+      - .env.dev
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:

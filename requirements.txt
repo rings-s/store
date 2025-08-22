@@ -1,0 +1,18 @@
+Django djangorestframework djangorestframework-simplejwt
+Pillow
+python-decouple
+psycopg2-binary
+redis
+celery
+django-cors-headers
+drf-nested-routers
+django-filter
+gunicorn
+boto3
+django-storages
+python-dotenv
+
+
+
+
+
