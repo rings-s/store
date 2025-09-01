@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - {{ company_name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .verification-code {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            padding: 25px;
+            border-radius: 15px;
+            letter-spacing: 8px;
+            margin: 30px 0;
+            display: inline-block;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .message {
+            font-size: 16px;
+            color: #444;
+            margin: 25px 0;
+        }
+        
+        .button {
+            display: inline-block;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+            margin: 20px 0;
+            transition: transform 0.2s;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 25px 0;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .social-links {
+            margin: 20px 0;
+        }
+        
+        .social-links a {
+            display: inline-block;
+            margin: 0 10px;
+            color: #666;
+            text-decoration: none;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .header, .content, .footer {
+                padding: 20px;
+            }
+            
+            .verification-code {
+                font-size: 28px;
+                letter-spacing: 4px;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Welcome to {{ company_name }}!</h1>
+            <p>Just one step left to unlock your premium shopping experience</p>
+        </div>
+        
+        <div class="content">
+            <h2>Hello {{ user_name|default:"there" }}! 👋</h2>
+            
+            <p class="message">
+                Thank you for joining {{ company_name }}! To complete your registration and start shopping, 
+                please verify your email address using the code below:
+            </p>
+            
+            <div class="verification-code">
+                {{ verification_code }}
+            </div>
+            
+            <p class="message">
+                Enter this <strong>4-digit code</strong> in the verification page to activate your account.
+            </p>
+            
+            {% if verification_url %}
+            <a href="{{ verification_url }}" class="button">
+                ✅ Verify Email Now
+            </a>
+            {% endif %}
+            
+            <div class="warning">
+                ⏰ <strong>Important:</strong> This code expires in {{ expiry_minutes }} minutes for security reasons.
+                If you didn't request this, please ignore this email.
+            </div>
+            
+            <p class="message">
+                Having trouble? Contact our support team at any time. We're here to help! 💝
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p><strong>{{ company_name }}</strong></p>
+            <p>Your trusted e-commerce partner</p>
+            
+            <div class="social-links">
+                <a href="#">📧 Support</a>
+                <a href="#">🌐 Website</a>
+                <a href="#">📱 Mobile App</a>
+            </div>
+            
+            <p style="margin-top: 20px;">
+                © {{ current_year }} {{ company_name }}. All rights reserved.<br>
+                This email was sent to verify your account registration.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

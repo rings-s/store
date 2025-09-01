@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚨 Security Alert: Multiple Failed Logins</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #2d3748;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+        }
+        
+        .alert-wrapper {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .alert-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .incident-details {
+            background: #fef5f5;
+            border: 2px solid #feb2b2;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        .detail-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .detail-label {
+            font-size: 12px;
+            color: #718096;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        
+        .detail-value {
+            font-size: 16px;
+            color: #2d3748;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="alert-wrapper">
+        <div class="header">
+            <div class="alert-icon">🚨</div>
+            <h1 style="margin: 0;">Security Alert</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Suspicious Login Activity Detected</p>
+        </div>
+        
+        <div class="content">
+            <h2 style="color: #e53e3e;">Multiple Failed Login Attempts</h2>
+            
+            <p>Our security system has detected multiple failed login attempts for the following account:</p>
+            
+            <div class="incident-details">
+                <h3 style="margin-top: 0; color: #c53030;">Incident Details</h3>
+                
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Email</div>
+                        <div class="detail-value">{{ email }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Failed Attempts</div>
+                        <div class="detail-value">{{ failure_count }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">IP Address</div>
+                        <div class="detail-value">{{ ip }}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Timestamp</div>
+                        <div class="detail-value">{{ timestamp }}</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <strong>User Agent:</strong><br>
+                    <code style="background: #f7fafc; padding: 10px; border-radius: 5px; display: block; margin-top: 5px; font-size: 12px; word-break: break-all;">{{ user_agent }}</code>
+                </div>
+            </div>
+            
+            <div style="background: #fff5f5; border-left: 4px solid #fc8181; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                <h4 style="margin-top: 0; color: #c53030;">Recommended Actions:</h4>
+                <ul style="margin-bottom: 0;">
+                    <li>Monitor the account for suspicious activity</li>
+                    <li>Consider temporarily locking the account if pattern continues</li>
+                    <li>Check if this IP should be blocked</li>
+                    <li>Alert user if legitimate account holder</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

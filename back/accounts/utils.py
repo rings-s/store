@@ -1,176 +1,187 @@
 # accounts/utils.py
-import secrets
-import string
-from datetime import timedelta
-from django.utils import timezone
+"""Email handling, response formatting, and rate limiting utilities."""
 from django.core.mail import send_mail
-from django.template.loader import render_to_string
 from django.conf import settings
+from django.template.loader import render_to_string
 from django.utils.html import strip_tags
-import hashlib
-import jwt
-from typing import Optional, Dict, Any
+from django.core.cache import cache
+from typing import Dict, Any, Optional, Union
+import logging
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.response import Response
+from django.template.exceptions import TemplateDoesNotExist, TemplateSyntaxError
 
+logger = logging.getLogger(__name__)
+security_logger = logging.getLogger('security')
 
-class TokenGenerator:
-    @staticmethod
-    def generate_token(length: int = 32) -> str:
-        alphabet = string.ascii_letters + string.digits
-        return ''.join(secrets.choice(alphabet) for _ in range(length))
+# Rate limiting configuration
+RATE_LIMITS = {
+    'verification': {'max_attempts': 3, 'lockout_seconds': 1800},
+    'reset': {'max_attempts': 3, 'lockout_seconds': 1800},
+    'default': {'max_attempts': 5, 'lockout_seconds': 900}
+}
+
+class EmailRateLimitExceeded(Exception):
+    """Exception raised when email action exceeds rate limit."""
+    def __init__(self, wait_minutes=None):
+        self.wait_minutes = wait_minutes
+        message = f"Too many attempts. Please wait {wait_minutes} minutes before trying again." if wait_minutes else "Too many attempts. Please try again later."
+        super().__init__(message)
+
+def create_response(
+    data: Optional[Dict[str, Any]] = None,
+    message: Optional[str] = None,
+    error: Optional[Union[str, Dict[str, Any]]] = None,
+    error_code: Optional[str] = None,
+    status_code: int = status.HTTP_200_OK
+) -> Response:
+    """Create standardized API response."""
+    response_data = {"status": "error" if error else "success"}
+
+    if data is not None:
+        response_data["data"] = data
+    if message:
+        response_data["message"] = message
+    if error:
+        if isinstance(error, dict) and any(isinstance(v, list) for v in error.values()):
+            response_data["error"] = error
+        else:
+            response_data["error"] = {"message": error}
+            if error_code:
+                response_data["error"]["code"] = error_code
+
+    return Response(response_data, status=status_code)
+
+def check_rate_limit(identifier: str, action_type: str) -> None:
+    """Check if action exceeds rate limit."""
+    if not identifier:
+        logger.warning(f"Empty identifier for rate limit check: {action_type}")
+        return
+
+    limits = RATE_LIMITS.get(action_type, RATE_LIMITS['default'])
+    max_attempts = limits['max_attempts']
+    lockout_time = limits['lockout_seconds']
+
+    cache_key = f"rate_limit_{action_type}_{identifier.lower().replace('@', '_at_').replace('.', '_dot_')}"
+    attempts = cache.get(cache_key, 0)
     
-    @staticmethod
-    def generate_numeric_otp(length: int = 6) -> str:
-        return ''.join(secrets.choice(string.digits) for _ in range(length))
-    
-    @staticmethod
-    def hash_token(token: str) -> str:
-        return hashlib.sha256(token.encode()).hexdigest()
-    
-    @staticmethod
-    def generate_jwt_token(payload: Dict[str, Any], expiry_hours: int = 24) -> str:
-        payload['exp'] = timezone.now() + timedelta(hours=expiry_hours)
-        payload['iat'] = timezone.now()
-        return jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
-    
-    @staticmethod
-    def verify_jwt_token(token: str) -> Optional[Dict[str, Any]]:
+    if attempts >= max_attempts:
+        wait_minutes = lockout_time // 60
+        logger.warning(f"Rate limit exceeded: {action_type} by {identifier}. Attempts: {attempts}/{max_attempts}")
+        raise EmailRateLimitExceeded(wait_minutes=wait_minutes)
+
+    cache.set(cache_key, attempts + 1, timeout=lockout_time)
+
+def send_email(
+    to_email: str,
+    subject: str,
+    template_name: str,
+    context: Dict[str, Any],
+    action_type: str = 'default',
+    check_limits: bool = True,
+    fail_silently: bool = False
+) -> bool:
+    """Send an email using Django templates with rate limiting."""
+    if not to_email:
+        logger.error(f"Attempted to send email with empty recipient: {subject}")
+        return False
+
+    if check_limits:
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-            return payload
-        except jwt.ExpiredSignatureError:
-            return None
-        except jwt.InvalidTokenError:
-            return None
+            check_rate_limit(to_email, action_type)
+        except EmailRateLimitExceeded as e:
+            logger.warning(f"Rate limit hit: {action_type} to {to_email}")
+            raise e
 
+    company_name = getattr(settings, 'COMPANY_NAME', 'TechSavvy Store')
+    default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@techsavvystore.com')
+    frontend_url = getattr(settings, 'FRONTEND_URL', '').rstrip('/')
 
-class EmailService:
-    @staticmethod
-    def send_verification_email(user, token):
-        subject = 'Verify Your Email - Online Store'
-        verification_url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
-        
-        context = {
-            'user': user,
-            'verification_url': verification_url,
-            'company_name': 'Online Store',
-            'support_email': 'support@onlinestore.com',
-            'year': timezone.now().year,
-        }
-        
-        html_message = render_to_string('email/verification_email.html', context)
-        plain_message = strip_tags(html_message)
-        
-        send_mail(
-            subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            html_message=html_message,
-            fail_silently=False,
-        )
-    
-    @staticmethod
-    def send_password_reset_email(user, token):
-        subject = 'Password Reset Request - Online Store'
-        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
-        
-        context = {
-            'user': user,
-            'reset_url': reset_url,
-            'company_name': 'Online Store',
-            'support_email': 'support@onlinestore.com',
-            'year': timezone.now().year,
-            'expiry_hours': 2,
-        }
-        
-        html_message = render_to_string('email/reset_request.html', context)
-        plain_message = strip_tags(html_message)
-        
-        send_mail(
-            subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            html_message=html_message,
-            fail_silently=False,
-        )
-    
-    @staticmethod
-    def send_password_reset_confirmation(user):
-        subject = 'Password Successfully Reset - Online Store'
-        
-        context = {
-            'user': user,
-            'company_name': 'Online Store',
-            'support_email': 'support@onlinestore.com',
-            'year': timezone.now().year,
-        }
-        
-        html_message = render_to_string('email/reset_confirm.html', context)
-        plain_message = strip_tags(html_message)
-        
-        send_mail(
-            subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            html_message=html_message,
-            fail_silently=False,
-        )
-    
-    @staticmethod
-    def send_welcome_email(user):
-        subject = 'Welcome to Online Store!'
-        
-        context = {
-            'user': user,
-            'company_name': 'Online Store',
-            'support_email': 'support@onlinestore.com',
-            'year': timezone.now().year,
-            'dashboard_url': f"{settings.FRONTEND_URL}/dashboard",
-        }
-        
-        html_message = render_to_string('email/welcome.html', context)
-        plain_message = strip_tags(html_message)
-        
-        send_mail(
-            subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            html_message=html_message,
-            fail_silently=False,
-        )
+    context.update({
+        'company_name': company_name,
+        'frontend_url': frontend_url,
+        'current_year': timezone.now().year,
+    })
 
+    full_subject = f"[{company_name}] {subject}"
 
-class SecurityUtils:
-    @staticmethod
-    def get_client_ip(request):
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0]
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip
-    
-    @staticmethod
-    def get_user_agent(request):
-        return request.META.get('HTTP_USER_AGENT', '')
-    
-    @staticmethod
-    def detect_device_type(user_agent: str) -> str:
-        user_agent_lower = user_agent.lower()
-        if 'mobile' in user_agent_lower or 'android' in user_agent_lower:
-            return 'Mobile'
-        elif 'tablet' in user_agent_lower or 'ipad' in user_agent_lower:
-            return 'Tablet'
-        else:
-            return 'Desktop'
-    
-    @staticmethod
-    def should_lock_account(failed_attempts: int) -> bool:
-        return failed_attempts >= 5
-    
-    @staticmethod
-    def get_lock_duration() -> timedelta:
-        return timedelta(minutes=30)
+    try:
+        html_template = f'emails/{template_name}.html'
+        try:
+            html_message = render_to_string(html_template, context)
+        except TemplateSyntaxError as e:
+            logger.error(f"Template syntax error in {html_template}: {str(e)}")
+            if not fail_silently:
+                raise
+            return False
+
+        try:
+            txt_template = f'emails/{template_name}.txt'
+            plain_message = render_to_string(txt_template, context)
+        except (TemplateDoesNotExist, TemplateSyntaxError):
+            plain_message = strip_tags(html_message)
+
+        if settings.DEBUG and 'console' in getattr(settings, 'EMAIL_BACKEND', ''):
+            logger.info(f"\n{'='*40}\nEMAIL TO: {to_email}\nSUBJECT: {full_subject}\nTEMPLATE: {template_name}\n{'='*40}")
+            if settings.DEBUG and action_type in ['verification', 'reset']:
+                code = context.get('verification_code') or context.get('reset_code')
+                if code:
+                    logger.info(f"DEBUG - {action_type.upper()} CODE: {code}")
+            return True
+
+        send_mail(
+            subject=full_subject,
+            message=plain_message,
+            html_message=html_message,
+            from_email=default_from_email,
+            recipient_list=[to_email],
+            fail_silently=fail_silently
+        )
+        logger.info(f"Email sent: {subject} to {to_email}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to send {action_type} email to {to_email}: {str(e)}", exc_info=True)
+        if not fail_silently:
+            raise
+        return False
+
+def send_verification_email(email: str, verification_code: str, context: Optional[Dict[str, Any]] = None) -> None:
+    """Send verification code email."""
+    ctx = context or {}
+    ctx['verification_code'] = verification_code
+    ctx['expiry_minutes'] = 2.5
+
+    if settings.FRONTEND_URL:
+        verify_path = getattr(settings, 'EMAIL_VERIFY_PATH', '/verify-email')
+        ctx['verification_url'] = f"{settings.FRONTEND_URL.rstrip('/')}{verify_path}?email={email}&code={verification_code}"
+
+    check_limits = not settings.DEBUG
+
+    send_email(
+        to_email=email,
+        subject="Verify Your Email Address",
+        template_name='verification_email',
+        context=ctx,
+        action_type='verification',
+        check_limits=check_limits
+    )
+
+def send_password_reset_email(email: str, reset_code: str, context: Optional[Dict[str, Any]] = None) -> None:
+    """Send password reset code email."""
+    ctx = context or {}
+    ctx['reset_code'] = reset_code
+    ctx['expiry_minutes'] = 2.5
+
+    if settings.FRONTEND_URL:
+        reset_path = getattr(settings, 'PASSWORD_RESET_PATH', '/reset-password')
+        ctx['reset_url'] = f"{settings.FRONTEND_URL.rstrip('/')}{reset_path}?email={email}&code={reset_code}"
+
+    send_email(
+        to_email=email,
+        subject="Reset Your Password",
+        template_name='password_reset',
+        context=ctx,
+        action_type='reset'
+    )

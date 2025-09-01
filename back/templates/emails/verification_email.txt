@@ -1,0 +1,24 @@
+{{ company_name }} - Email Verification
+
+Hello {{ user_name|default:"there" }}!
+
+Welcome to {{ company_name }}! Thank you for joining our community.
+
+To complete your registration and start shopping, please verify your email address using this 4-digit code:
+
+VERIFICATION CODE: {{ verification_code }}
+
+This code expires in {{ expiry_minutes }} minutes for security reasons.
+
+{% if verification_url %}You can also verify by clicking this link: {{ verification_url }}{% endif %}
+
+If you didn't request this verification, please ignore this email.
+
+Having trouble? Contact our support team - we're here to help!
+
+Best regards,
+The {{ company_name }} Team
+
+---
+© {{ current_year }} {{ company_name }}. All rights reserved.
+This email was sent to verify your account registration.

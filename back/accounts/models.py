@@ -1,14 +1,10 @@
 # accounts/models.py
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.contrib.auth.base_user import BaseUserManager
-
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 import uuid
-
-
-
 
 
 
@@ -30,6 +26,8 @@ class UserManager(BaseUserManager):
     def create_user(self, email, username, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', False)
         extra_fields.setdefault('is_superuser', False)
+        extra_fields.setdefault('is_active', False)  # Require email verification
+        extra_fields.setdefault('is_verified', False)  # Start unverified
         extra_fields.setdefault('role', 'customer')
         return self._create_user(email, username, password, **extra_fields)
     
@@ -53,7 +51,6 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('role', 'superadmin')
-        extra_fields.setdefault('is_verified', True)
         
         if extra_fields.get('is_staff') is not True:
             raise ValueError(_('Superuser must have is_staff=True.'))
@@ -84,16 +81,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
-    is_verified = models.BooleanField(default=False)
     
-    date_joined = models.DateTimeField(default=timezone.now)
-    last_login = models.DateTimeField(blank=True, null=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(default=timezone.now)
     
     # Profile fields
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     bio = models.TextField(blank=True)
-    date_of_birth = models.DateField(blank=True, null=True)
     
     # Address fields
     street_address = models.CharField(max_length=255, blank=True)
@@ -106,12 +99,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     loyalty_points = models.IntegerField(default=0)
     preferred_currency = models.CharField(max_length=3, default='USD')
     language_preference = models.CharField(max_length=10, default='en')
-    newsletter_subscription = models.BooleanField(default=True)
     
-    # Security
-    two_factor_enabled = models.BooleanField(default=False)
-    failed_login_attempts = models.IntegerField(default=0)
-    account_locked_until = models.DateTimeField(blank=True, null=True)
+    # Email verification fields (inspired by E-LearningSystem)
+    is_verified = models.BooleanField(default=False, verbose_name=_('Email Verified'))
+    verification_code = models.CharField(max_length=6, blank=True, null=True, verbose_name=_('Verification Code'))
+    verification_code_created = models.DateTimeField(null=True, blank=True, verbose_name=_('Verification Code Created'))
+    reset_code = models.CharField(max_length=6, blank=True, null=True, verbose_name=_('Reset Code'))
+    reset_code_created = models.DateTimeField(null=True, blank=True, verbose_name=_('Reset Code Created'))
     
     objects = UserManager()
     
@@ -143,70 +137,58 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_admin(self):
         return self.role in ['admin', 'superadmin']
+    
+    # E-LearningSystem inspired verification methods
+    def generate_verification_code(self, length=4):
+        """Generate verification code for email verification"""
+        import random
+        code = str(random.randint(10**(length-1), 10**length-1))
+        self.verification_code = code
+        self.verification_code_created = timezone.now()
+        self.is_verified = False
+        self.save(update_fields=['verification_code', 'verification_code_created', 'is_verified'])
+        return code
+
+    def verify_account(self, code):
+        """Verify account using verification code"""
+        if not self.verification_code or not self.verification_code_created or self.verification_code != code:
+            return False
+        
+        # Check if code has expired (2.5 minutes for store vs 24 hours in E-Learning)
+        expiry_time = self.verification_code_created + timezone.timedelta(minutes=2.5)
+        if timezone.now() > expiry_time:
+            return False
+
+        self.is_verified = True
+        self.is_active = True  # Activate user upon verification
+        self.verification_code = None
+        self.verification_code_created = None
+        self.save(update_fields=['is_verified', 'is_active', 'verification_code', 'verification_code_created'])
+        return True
+
+    def generate_reset_code(self, length=4):
+        """Generate password reset code"""
+        import random
+        code = str(random.randint(10**(length-1), 10**length-1))
+        self.reset_code = code
+        self.reset_code_created = timezone.now()
+        self.save(update_fields=['reset_code', 'reset_code_created'])
+        return code
+
+    def reset_password(self, code, new_password):
+        """Reset password using reset code"""
+        if not self.reset_code or not self.reset_code_created or self.reset_code != code:
+            return False
+        
+        # Check if code has expired (2.5 minutes for store vs 1 hour in E-Learning)
+        expiry_time = self.reset_code_created + timezone.timedelta(minutes=2.5)
+        if timezone.now() > expiry_time:
+            return False
+
+        self.set_password(new_password)
+        self.reset_code = None
+        self.reset_code_created = None
+        self.save(update_fields=['password', 'reset_code', 'reset_code_created'])
+        return True
 
 
-class EmailVerificationToken(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='verification_tokens')
-    token = models.CharField(max_length=255, unique=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
-    is_used = models.BooleanField(default=False)
-    
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['token']),
-            models.Index(fields=['user', 'is_used']),
-        ]
-    
-    def __str__(self):
-        return f"Token for {self.user.email}"
-    
-    @property
-    def is_expired(self):
-        return timezone.now() > self.expires_at
-
-
-class PasswordResetToken(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
-    token = models.CharField(max_length=255, unique=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
-    is_used = models.BooleanField(default=False)
-    ip_address = models.GenericIPAddressField(blank=True, null=True)
-    user_agent = models.TextField(blank=True)
-    
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['token']),
-            models.Index(fields=['user', 'is_used']),
-        ]
-    
-    def __str__(self):
-        return f"Password reset for {self.user.email}"
-    
-    @property
-    def is_expired(self):
-        return timezone.now() > self.expires_at
-
-
-class LoginHistory(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='login_history')
-    ip_address = models.GenericIPAddressField()
-    user_agent = models.TextField()
-    login_time = models.DateTimeField(auto_now_add=True)
-    logout_time = models.DateTimeField(blank=True, null=True)
-    is_successful = models.BooleanField(default=True)
-    location = models.CharField(max_length=255, blank=True)
-    device_type = models.CharField(max_length=50, blank=True)
-    
-    class Meta:
-        ordering = ['-login_time']
-        verbose_name_plural = 'Login histories'
-    
-    def __str__(self):
-        return f"{self.user.email} - {self.login_time}"
