@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a full-stack e-commerce platform consisting of:
 - **Backend**: Django REST API with JWT authentication, user management, and e-commerce features
+- **Frontend**: SvelteKit web application with modern UI components and state management
 - **Database**: SQLite for development, PostgreSQL for production
 - **Caching/Message Queue**: Redis for Celery task processing
 - **Deployment**: Docker containerization ready
@@ -23,8 +24,19 @@ store/
 │   ├── manage.py           # Django management script
 │   ├── requirements.txt    # Python dependencies
 │   └── CLAUDE.md          # Backend-specific documentation
+├── front/                   # SvelteKit frontend application
+│   ├── src/                # Frontend source code
+│   │   ├── lib/            # Shared utilities, API clients, stores
+│   │   ├── routes/         # SvelteKit routes and pages
+│   │   ├── app.html        # HTML template
+│   │   └── app.css         # Global styles
+│   ├── static/             # Static assets
+│   ├── package.json        # Node.js dependencies
+│   ├── svelte.config.js    # SvelteKit configuration
+│   ├── vite.config.js      # Vite build configuration
+│   └── structure.md        # Frontend structure documentation
 ├── Pipfile                 # Pipenv configuration
-├── docker-compose.yml     # Docker services configuration
+├── docker-compose.yml     # Docker services configuration (corrected filename)
 └── .env files             # Environment configurations
 ```
 
@@ -62,6 +74,35 @@ venv\Scripts\activate     # Windows
 
 # Install dependencies
 pip install -r requirements.txt
+```
+
+### Frontend Development (SvelteKit)
+
+```bash
+# Navigate to frontend directory
+cd front
+
+# Install dependencies
+npm install
+
+# Start development server (default: http://localhost:5173)
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Run linting and formatting
+npm run lint
+npm run format
+
+# Type checking with Svelte 5 + JSDoc
+npm run check
+
+# Run E2E tests
+npm run test:e2e
 ```
 
 ### Docker Development
@@ -154,6 +195,19 @@ docker-compose up celery
 docker-compose up celery-beat
 ```
 
+### Full Stack Development
+
+```bash
+# Start backend (from project root)
+cd back && python manage.py runserver
+
+# Start frontend (from project root, in new terminal)
+cd front && npm run dev
+
+# Or start everything with Docker
+docker-compose up
+```
+
 ## Architecture Overview
 
 ### Backend Django Apps
@@ -183,6 +237,34 @@ docker-compose up celery-beat
 - Celery integration for background tasks
 - AWS S3 support for file storage
 
+### Frontend SvelteKit Architecture
+
+**Frontend Structure**:
+- **SvelteKit Framework**: Modern full-stack framework with SSR/SPA capabilities
+- **Svelte 5 Runes**: New runes-based reactivity system (`$state`, `$derived`, `$effect`, `$props`)
+- **Component Architecture**: Domain-organized UI components (ui/, layout/, product/, cart/, etc.)
+- **State Management**: Svelte 5 stores with context-based dependency injection
+- **Design System**: Tailwind CSS 4.0 with custom theme and premium patterns
+- **Typography**: Variable fonts (Inter, Outfit) with advanced font features
+- **API Integration**: Centralized client with JWT management and error handling
+- **Type Safety**: JSDoc annotations for comprehensive type checking
+- **Build System**: Vite 7.0 for fast development and optimized production builds
+- **Testing**: Playwright for E2E testing, ESLint/Prettier for code quality
+
+**Key Frontend Features**:
+- Server-side rendering (SSR) and client-side navigation
+- Progressive enhancement with SvelteKit
+- Premium UI patterns (glass morphism, neumorphism, magnetic effects)
+- Advanced animations with custom easing functions
+- Dark/light theme with system preference detection
+- Responsive design with mobile-first approach
+- Shopping cart state management with persistence
+- User authentication flow with JWT handling
+- Product catalog with filtering and search
+- Accessibility-first design (WCAG compliance)
+- Performance optimizations (code splitting, lazy loading)
+- E2E testing with Playwright
+
 ### Authentication Architecture
 
 - **JWT-based authentication** using djangorestframework-simplejwt
@@ -193,21 +275,31 @@ docker-compose up celery-beat
 
 ### API Structure
 
-Base URL: `http://localhost:8000/api/`
+**Backend API** (Django REST Framework):
+- Base URL: `http://localhost:8000/api/`
+- **Authentication Endpoints** (`/api/accounts/`):
+  - User registration, login, logout
+  - Email verification workflows
+  - Password reset functionality
+  - Profile management
+  - JWT token refresh
+- **E-commerce Endpoints** (`/api/`):
+  - Product CRUD with filtering and search
+  - Category management
+  - Shopping cart operations
+  - Order processing
+  - Review and wishlist management
 
-**Authentication Endpoints** (`/api/accounts/`):
-- User registration, login, logout
-- Email verification workflows
-- Password reset functionality
-- Profile management
-- JWT token refresh
-
-**E-commerce Endpoints** (`/api/`):
-- Product CRUD with filtering and search
-- Category management
-- Shopping cart operations
-- Order processing
-- Review and wishlist management
+**Frontend Routes** (SvelteKit):
+- Base URL: `http://localhost:5173/`
+- `/` - Home page with featured products
+- `/products` - Product catalog with filtering
+- `/products/[slug]` - Product detail pages
+- `/cart` - Shopping cart management
+- `/checkout` - Checkout process
+- `/auth/login` & `/auth/register` - Authentication
+- `/account` - User profile and order history
+- `/account/wishlist` - User wishlist
 
 ### Database Design
 
@@ -240,6 +332,30 @@ EMAIL_HOST_PASSWORD=smtp-password
 - AWS S3 credentials
 - Email backend settings
 
+### Technology Stack
+
+**Backend**:
+- Django 5.2.5 + Django REST Framework 3.16.1
+- JWT Authentication (djangorestframework-simplejwt)
+- PostgreSQL (production) / SQLite (development)
+- Redis + Celery for background tasks
+- Pillow for image processing
+- Gunicorn for production deployment
+
+**Frontend**:
+- SvelteKit (Svelte 5.0) with runes-based reactivity and JSDoc typing
+- Tailwind CSS 4.0 with custom design system and premium UI patterns
+- Vite 7.0 for build tooling and development server  
+- Playwright for E2E testing
+- ESLint + Prettier for code quality
+- Variable fonts (Inter, Outfit) for premium typography
+- Auto-adapter for deployment flexibility
+
+**DevOps**:
+- Docker + docker-compose for containerization
+- Pipenv for Python dependency management
+- npm for Node.js dependency management
+
 ## Key Features
 
 ### Advanced User Management
@@ -266,6 +382,10 @@ EMAIL_HOST_PASSWORD=smtp-password
 - API documentation ready
 - Environment-based configuration
 - Background task processing with Celery
+- Hot reloading for both frontend and backend development
+- Modern frontend development with SvelteKit and Vite
+- E2E testing with Playwright
+- Code quality tools (ESLint, Prettier) for consistent formatting
 
 ## Development Patterns
 
@@ -290,6 +410,18 @@ EMAIL_HOST_PASSWORD=smtp-password
 - Input validation and sanitization
 - Secure password reset flows
 
+### Frontend Patterns
+- **Svelte 5 Runes**: Use `$state()`, `$derived()`, `$effect()`, and `$props()` for reactivity
+- **Component Architecture**: Domain-organized components (ui/, layout/, product/, cart/)
+- **Context-Based Stores**: Use `setContext()` and `getContext()` for dependency injection
+- **Server-Side Rendering**: SSR with SvelteKit for SEO and performance
+- **API Client Pattern**: Centralized client with JWT token management and retry logic
+- **Premium UI Patterns**: Glass morphism, neumorphism, magnetic effects, hover animations
+- **Theme System**: CSS custom properties with dark/light mode support
+- **Typography Scale**: Variable fonts with advanced OpenType features
+- **Route-Based Code Splitting**: Automatic optimization through SvelteKit
+- **Progressive Enhancement**: Accessibility-first development approach
+
 ## Testing Strategy
 
 The project includes comprehensive test files:
@@ -297,12 +429,18 @@ The project includes comprehensive test files:
 - `test_auth_flow.py` - Authentication workflow testing
 - `test_verification_model.py` - Email verification testing
 
-**Testing Approach**:
+**Backend Testing Approach**:
 - Unit tests for all models and utilities
 - API endpoint testing for all views
 - Authentication flow testing
 - Permission-based access testing
 - Integration testing for complex workflows
+
+**Frontend Testing Approach**:
+- E2E testing with Playwright for critical user flows
+- Component testing for UI components
+- Integration testing for API communication
+- Accessibility testing for WCAG compliance
 
 ## Deployment Notes
 
@@ -323,13 +461,25 @@ The project includes a `docker-compose.yml` with:
 
 ## Common Tasks
 
-### Adding New Features
+### Adding New Backend Features
 1. Create models in appropriate app (accounts or base)
 2. Create serializers with `__all__` fields pattern
 3. Create generic API views (not ViewSets)
 4. Add URL patterns
 5. Write comprehensive tests
 6. Update permissions as needed
+
+### Adding New Frontend Features
+1. Create components using Svelte 5 runes (`$state`, `$props`, `$effect`, `$derived`)
+2. Organize components by domain under `front/src/lib/components/` (ui/, layout/, product/, etc.)
+3. Add routes in `front/src/routes/` following SvelteKit file-based conventions
+4. Update API client in `front/src/lib/api/` if backend integration needed
+5. Create context-based stores using `setContext()` and `getContext()` pattern
+6. Apply Tailwind CSS 4.0 classes and custom design system tokens
+7. Implement premium UI patterns (glass effects, animations, hover states)
+8. Ensure dark/light theme compatibility with CSS custom properties
+9. Write E2E tests for critical user flows with Playwright
+10. Verify accessibility compliance and responsive design
 
 ### Database Schema Changes
 1. Make model changes
@@ -339,17 +489,55 @@ The project includes a `docker-compose.yml` with:
 5. Test with existing data
 
 ### Testing New Code
+
+**Backend Testing**:
 1. Write unit tests for models
 2. Write API tests for views
 3. Test authentication flows
 4. Run full test suite: `python manage.py test`
 5. Test with Docker environment
 
+**Frontend Testing**:
+1. Write component tests for Svelte 5 runes-based components
+2. Write E2E tests for user workflows: `npm run test:e2e`
+3. Test API integration with JWT authentication flows
+4. Run type checking with JSDoc annotations: `npm run check`
+5. Verify responsiveness across device viewports
+6. Test accessibility compliance (WCAG standards)
+7. Validate dark/light theme functionality
+8. Test premium UI interactions (hover effects, animations)
+9. Performance testing with Lighthouse metrics
+
 ## File Locations
 
 - **Backend code**: `back/` directory
-- **Database**: `db.sqlite3` (development)
-- **Logs**: `back/logs/` directory
-- **Templates**: `back/templates/` directory
-- **Static files**: Configured for Django static files
-- **Environment files**: `.env*` files in root
+- **Frontend code**: `front/` directory
+- **Database**: `db.sqlite3` (development, in project root)
+- **Logs**: `logs/` directory (project root)
+- **Backend templates**: `back/templates/` directory
+- **Frontend static files**: `front/static/` directory
+- **Environment files**: `.env*` files in project root
+- **Docker configuration**: `docker-compose.yml` (note: filename has typo "docker-comose.yml")
+
+## Important Notes
+
+### Development Environment
+- Frontend development server runs on port 5173 (Vite 7.0 default)
+- Backend development server runs on port 8000 (Django default)  
+- Both can run simultaneously for full-stack development
+- Hot module reloading enabled for both frontend and backend
+
+### Technology Stack Integration
+- **Svelte 5 Runes**: New reactivity system replaces traditional stores pattern
+- **Tailwind CSS 4.0**: Uses `@theme` directive with CSS custom properties
+- **Variable Fonts**: Inter Variable and Outfit Variable for premium typography
+- **JSDoc Typing**: Comprehensive type safety without TypeScript overhead
+- **Premium UI**: Glass morphism, neumorphism, and magnetic effects built-in
+- **Dark Mode**: System preference detection with CSS custom properties
+- **Performance**: Vite 7.0 with optimized build and development experience
+
+### Deployment Considerations
+- The Docker Compose file has a typo in the filename (`docker-comose.yml` instead of `docker-compose.yml`)
+- The backend uses a corrected Celery app name (`back` not `online_store` as in docker-compose)
+- Frontend builds are optimized for production with SvelteKit adapter-auto
+- All static assets are processed through Vite's optimized build pipeline
