@@ -26,7 +26,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
-    'storages',
+    # 'storages',  # Temporarily disabled
     
     # Local apps
     'accounts',
@@ -184,6 +184,12 @@ PASSWORD_RESET_PATH = config('PASSWORD_RESET_PATH', default='/reset-password')
 # CORS Settings
 CORS_ALLOWED_ORIGINS = [
     config('FRONTEND_URL', default='http://localhost:3000'),
+    'http://localhost:5173',  # Vite development server
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
+    'http://localhost:5177',
+    'http://localhost:5178',
 ]
 
 # Celery Configuration

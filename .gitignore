@@ -9,7 +9,9 @@ dist/
 build/
 eggs/
 .eggs/
-lib/
+# Python lib directories only
+**/venv/lib/
+**/env/lib/
 lib64/
 parts/
 sdist/
