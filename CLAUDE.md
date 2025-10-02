@@ -107,8 +107,11 @@ npm run test:e2e
 
 ### Docker Development
 
+**Note**: The docker-compose file has a typo in the filename (`docker-comose.yml`) and uses incorrect app name `online_store` instead of `back` for Celery commands. Fix these before using Docker.
+
 ```bash
-# Start all services (PostgreSQL, Redis, Django, Celery)
+# After fixing filename and app name:
+# Start all services (PostgreSQL, Redis, Django)
 docker-compose up
 
 # Start in background
@@ -181,18 +184,17 @@ docker-compose exec web python manage.py test
 
 ### Task Queue (Celery)
 
+**Note**: Celery is configured in settings.py but not yet implemented. The celery.py file needs to be created at `back/back/celery.py` before these commands will work.
+
 ```bash
 cd back
 
+# After creating celery.py:
 # Start Celery worker (requires Redis)
 celery -A back worker -l info
 
 # Start Celery beat scheduler
 celery -A back beat -l info
-
-# With Docker (automatic startup)
-docker-compose up celery
-docker-compose up celery-beat
 ```
 
 ### Full Stack Development
@@ -215,10 +217,12 @@ docker-compose up
 **accounts app** - Complete user management system:
 - Custom User model with UUID primary keys
 - Role-based access control (customer, vendor, admin, superadmin)
-- JWT authentication with refresh tokens
-- Email verification with gamification (loyalty points system)
-- Password reset with secure token handling
-- User profiles with avatars, addresses, and preferences
+- JWT authentication with refresh tokens and token blacklist
+- Email verification with 6-digit codes (rate limited: 3 attempts per 30 min)
+- Password reset with 6-digit codes and rate limiting
+- Loyalty points system (gamification feature)
+- User profiles with avatars, addresses, preferences, and cultural localization
+- Login history tracking for security
 
 **base app** - E-commerce core functionality:
 - Product management with categories, variants, and stock tracking
@@ -231,11 +235,13 @@ docker-compose up
 
 **back project** - Django configuration:
 - Environment-based settings using python-decouple
-- JWT authentication setup
-- CORS configuration for frontend integration
-- Database configuration (SQLite dev, PostgreSQL prod)
-- Celery integration for background tasks
-- AWS S3 support for file storage
+- JWT authentication with djangorestframework-simplejwt
+- CORS configured for multiple Vite dev server ports (5173-5178)
+- Database: SQLite (development), PostgreSQL ready (commented in settings)
+- Redis and Celery configured (celery.py needs to be created)
+- AWS S3 support ready (conditional on USE_S3 env var)
+- Comprehensive logging to files (logs/django.log, logs/auth.log)
+- Security headers and session configuration
 
 ### Frontend SvelteKit Architecture
 
@@ -267,11 +273,12 @@ docker-compose up
 
 ### Authentication Architecture
 
-- **JWT-based authentication** using djangorestframework-simplejwt
-- **Stateless email verification** with JWT tokens (6 token types)
-- **Role-based permissions** with custom user roles
-- **Gamification system** with loyalty points and achievements
-- **Security features**: account lockout, login history, two-factor ready
+- **JWT-based authentication** using djangorestframework-simplejwt for API access
+- **Email verification** with 6-digit codes and rate limiting (3 attempts per 30 min)
+- **Password reset** with 6-digit codes and secure token handling
+- **Role-based permissions** with custom user roles (customer, vendor, admin, superadmin)
+- **Loyalty points system** for user engagement
+- **Security features**: rate limiting, login history tracking
 
 ### API Structure
 
@@ -292,13 +299,18 @@ docker-compose up
 
 **Frontend Routes** (SvelteKit):
 - Base URL: `http://localhost:5173/`
-- `/` - Home page with featured products
-- `/products` - Product catalog with filtering
+- `/` - Home page
+- `/products` - Product catalog
 - `/products/[slug]` - Product detail pages
-- `/cart` - Shopping cart management
+- `/cart` - Shopping cart
 - `/checkout` - Checkout process
-- `/auth/login` & `/auth/register` - Authentication
-- `/account` - User profile and order history
+- `/auth/login` - User login
+- `/auth/register` - User registration
+- `/auth/verify-email` - Email verification
+- `/auth/reset-password` - Password reset request
+- `/auth/reset-password/confirm` - Password reset confirmation
+- `/account` - User profile
+- `/account/orders` - Order history
 - `/account/wishlist` - User wishlist
 
 ### Database Design
@@ -360,11 +372,11 @@ EMAIL_HOST_PASSWORD=smtp-password
 
 ### Advanced User Management
 - Custom User model with comprehensive profile fields
-- Progressive registration with gamification
-- JWT-based email verification (stateless)
-- Loyalty points system with achievements
-- Role-based access control
-- Cultural localization support
+- Email verification with 6-digit codes and rate limiting
+- Password reset with 6-digit codes and secure handling
+- Loyalty points system for user engagement
+- Role-based access control (customer, vendor, admin, superadmin)
+- Cultural localization support (preferred_language, preferred_currency)
 
 ### E-commerce Platform
 - Product catalog with categories and variants
@@ -376,16 +388,14 @@ EMAIL_HOST_PASSWORD=smtp-password
 - Wishlist and comparison features
 
 ### Developer Experience
-- Comprehensive test suite with custom test cases
-- Docker containerization for consistent environments
-- Detailed logging system
-- API documentation ready
-- Environment-based configuration
-- Background task processing with Celery
-- Hot reloading for both frontend and backend development
-- Modern frontend development with SvelteKit and Vite
+- Test files included: test_api_endpoints.py, test_auth_flow.py, test_verification_model.py
+- Docker configuration available (needs fixing: filename typo, wrong Celery app name)
+- Comprehensive logging to files (django.log, auth.log)
+- Environment-based configuration with python-decouple
+- Hot reloading for both frontend and backend
+- Modern frontend with SvelteKit (Svelte 5) and Vite 7
 - E2E testing with Playwright
-- Code quality tools (ESLint, Prettier) for consistent formatting
+- Code quality tools: ESLint, Prettier, svelte-check
 
 ## Development Patterns
 
@@ -404,11 +414,13 @@ EMAIL_HOST_PASSWORD=smtp-password
 - Comprehensive filtering and search
 
 ### Security Patterns
-- JWT tokens with refresh mechanism
-- Email verification before account activation
-- Role-based permissions
-- Input validation and sanitization
-- Secure password reset flows
+- JWT tokens with refresh mechanism and blacklist
+- Email verification with 6-digit codes (not JWT)
+- Rate limiting on verification/reset (3 attempts per 30 min)
+- Role-based permissions with custom decorators
+- Password validation (8 char minimum, complexity requirements)
+- Secure password reset with time-limited codes
+- Security headers (XSS filter, content type nosniff, X-Frame-Options)
 
 ### Frontend Patterns
 - **Svelte 5 Runes**: Use `$state()`, `$derived()`, `$effect()`, and `$props()` for reactivity
@@ -512,12 +524,13 @@ The project includes a `docker-compose.yml` with:
 
 - **Backend code**: `back/` directory
 - **Frontend code**: `front/` directory
-- **Database**: `db.sqlite3` (development, in project root)
-- **Logs**: `logs/` directory (project root)
-- **Backend templates**: `back/templates/` directory
+- **Database**: `db.sqlite3` (SQLite, in project root)
+- **Logs**: `logs/` directory (created by Django, in project root)
+- **Email templates**: `back/templates/` directory (settings.py: BASE_DIR / 'templates')
 - **Frontend static files**: `front/static/` directory
-- **Environment files**: `.env*` files in project root
-- **Docker configuration**: `docker-compose.yml` (note: filename has typo "docker-comose.yml")
+- **Environment files**: `.env`, `.env.dev`, `.env.prod` (project root)
+- **Docker config**: `docker-comose.yml` (typo in filename, should be docker-compose.yml)
+- **Python deps**: `requirements.txt` (current), `Pipfile` (outdated versions)
 
 ## Important Notes
 
@@ -536,8 +549,15 @@ The project includes a `docker-compose.yml` with:
 - **Dark Mode**: System preference detection with CSS custom properties
 - **Performance**: Vite 7.0 with optimized build and development experience
 
-### Deployment Considerations
-- The Docker Compose file has a typo in the filename (`docker-comose.yml` instead of `docker-compose.yml`)
-- The backend uses a corrected Celery app name (`back` not `online_store` as in docker-compose)
-- Frontend builds are optimized for production with SvelteKit adapter-auto
-- All static assets are processed through Vite's optimized build pipeline
+### Known Issues to Fix
+- **Docker Compose**: Filename typo `docker-comose.yml` → `docker-compose.yml`
+- **Docker Compose**: Celery commands use wrong app name `online_store` → should be `back`
+- **Celery**: Not implemented yet - need to create `back/back/celery.py`
+- **Dependencies**: `Pipfile` has outdated versions - use `requirements.txt` instead
+- **Templates**: Settings shows BASE_DIR (3 levels up) for templates path
+
+### Deployment Readiness
+- Frontend optimized with SvelteKit adapter-auto and Vite build pipeline
+- Backend ready for PostgreSQL (commented config in settings.py)
+- AWS S3 integration ready (conditional on USE_S3 env var)
+- Gunicorn included for production WSGI server

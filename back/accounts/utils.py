@@ -15,6 +15,8 @@ from django.template.exceptions import TemplateDoesNotExist, TemplateSyntaxError
 logger = logging.getLogger(__name__)
 security_logger = logging.getLogger('security')
 
+
+
 # Rate limiting configuration
 RATE_LIMITS = {
     'verification': {'max_attempts': 3, 'lockout_seconds': 1800},

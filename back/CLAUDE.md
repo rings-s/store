@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Django REST API e-commerce backend built with Django REST Framework. The project implements a complete e-commerce system with user management, product catalog, shopping cart, orders, payments, and delivery tracking.
+Django REST API backend for e-commerce platform with JWT authentication, role-based access control, and comprehensive user management. Uses Django 5.2.5 with DRF 3.16.1.
+
+**Key Technologies**: Django REST Framework, JWT (simplejwt), PostgreSQL/SQLite, Redis (configured), Celery (needs implementation), python-decouple for config.
 
 ## Development Commands
 
@@ -99,13 +101,15 @@ python manage.py startapp [app_name]
 - `Coupon`: Discount coupons and promotions
 
 ### Authentication & Security
-- JWT authentication with refresh tokens using `rest_framework_simplejwt`
-- Role-based permissions (Customer, Vendor, Admin, SuperAdmin)
-- Email verification system with secure tokens
-- Password reset with secure tokens and tracking
-- Login history tracking with IP and user agent
-- Account locking after failed login attempts
-- Two-factor authentication ready
+- **JWT Authentication**: Access/refresh tokens with blacklist (simplejwt)
+- **Email Verification**: 6-digit codes with rate limiting (3 attempts per 30 min)
+- **Password Reset**: 6-digit codes with time limits and rate limiting
+- **Role-Based Access**: Custom permissions (customer, vendor, admin, superadmin)
+- **Security Features**:
+  - Rate limiting via Django cache
+  - Login history tracking (IP, user agent)
+  - Password validation (8 char min, complexity)
+  - Security headers (XSS filter, nosniff, X-Frame-Options)
 
 ### API Structure
 - Base URL: `http://localhost:8000/api/`
@@ -116,29 +120,35 @@ python manage.py startapp [app_name]
 - Comprehensive pagination (20 items per page)
 
 ### Database Design
-- PostgreSQL ready (configured but SQLite active for development)
-- UUID primary keys for all models
-- Proper indexing for performance
-- JSON fields for flexible data storage (features, specifications, attributes)
-- Follows second normal form design principles
+- **Current**: SQLite (db.sqlite3 in project root)
+- **Production Ready**: PostgreSQL config commented in settings.py
+- **UUID Primary Keys**: All models use UUID for security
+- **Indexing**: Optimized for queries on email, username, created_at
+- **JSON Fields**: Flexible data (product specs, user preferences)
+- **Soft Deletes**: is_active flags on models
+- **Timestamps**: created_at, updated_at on all models
 
 ### Configuration
-- Environment-based configuration using `python-decouple`
-- Separate settings for development/production
-- Redis configured for Celery (task queue)
-- AWS S3 support for file storage (optional)
-- CORS configured for frontend integration
-- Email backend configured for notifications
+- **Environment**: python-decouple for .env file management
+- **CORS**: Multiple Vite ports (5173-5178) + frontend URL
+- **Redis**: Configured for Celery (localhost:6379)
+- **Celery**: Settings ready, but celery.py not created yet
+- **AWS S3**: Conditional support (USE_S3 env var)
+- **Email**: Console backend (dev), SMTP ready (prod)
+- **Logging**: File-based (logs/django.log, logs/auth.log)
+- **Templates**: BASE_DIR / 'templates' (project root)
 
 ## Key Features
 
 ### User Management
-- Custom user model with profile fields
-- Role-based access control
-- Email verification workflow
-- Secure password reset
-- Login history and security tracking
-- Account lockout protection
+- Custom User model (AbstractBaseUser + PermissionsMixin)
+- UUID primary keys for all users
+- Role-based access (customer, vendor, admin, superadmin)
+- Email verification (6-digit codes, 30-min rate limit)
+- Password reset (6-digit codes, time-limited)
+- Loyalty points system (gamification)
+- Profile fields: avatar, bio, addresses, preferences
+- Cultural localization: preferred_language, preferred_currency
 
 ### E-commerce Features
 - Product management with variants and images
@@ -153,12 +163,13 @@ python manage.py startapp [app_name]
 - Stock tracking and management
 
 ### API Features
-- JWT authentication with refresh tokens
-- Comprehensive filtering and search
-- Pagination on all list endpoints
-- Nested serialization for related objects
-- Error handling and validation
-- CORS support for frontend integration
+- **Authentication**: JWT with access/refresh tokens and blacklist
+- **Pagination**: 20 items per page (PageNumberPagination)
+- **Filtering**: django-filter integration on list views
+- **Search**: SearchFilter and OrderingFilter enabled
+- **Serialization**: Field `__all__` pattern, nested serializers
+- **Error Handling**: Standardized responses via utils.create_response()
+- **CORS**: Configured for multiple frontend ports
 
 ## Development Patterns
 
@@ -171,11 +182,12 @@ python manage.py startapp [app_name]
 - Custom managers for user creation
 
 ### View Patterns
-- Generic API views (ListCreateAPIView, RetrieveUpdateDestroyAPIView)
-- Permission classes for role-based access
-- Custom authentication classes
-- Filtering and search capabilities
-- Proper error handling and responses
+- **Generic Views**: ListCreateAPIView, RetrieveUpdateDestroyAPIView (not ViewSets)
+- **Permissions**: IsAuthenticated as default, custom role-based decorators
+- **Rate Limiting**: Implemented in utils.py (check_rate_limit function)
+- **Response Format**: Standardized via utils.create_response()
+  - Success: `{"status": "success", "data": {...}, "message": "..."}`
+  - Error: `{"status": "error", "error": {...}, "error_code": "..."}`
 
 ### Serializer Patterns
 - Field `__all__` serialization as specified
@@ -198,24 +210,79 @@ python manage.py startapp [app_name]
 - `FRONTEND_URL`: Frontend URL for CORS
 
 ### Optional Environment Variables
-- Database configuration (PostgreSQL)
-- Redis configuration (Celery)
-- AWS S3 configuration
-- Email backend settings
+- **Database**: DB_ENGINE, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
+- **Redis**: REDIS_HOST (default: localhost), REDIS_PORT (default: 6379)
+- **AWS S3**: USE_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_STORAGE_BUCKET_NAME, AWS_S3_REGION_NAME
+- **Email**: EMAIL_BACKEND, EMAIL_HOST, EMAIL_PORT, EMAIL_USE_TLS, DEFAULT_FROM_EMAIL
+- **Frontend**: FRONTEND_URL (for CORS), EMAIL_VERIFY_PATH, PASSWORD_RESET_PATH
+- **App**: COMPANY_NAME (default: TechSavvy Store)
 
-## Security Considerations
-- Never commit sensitive environment variables
-- Use secure JWT secret keys
-- Implement proper CORS settings
-- Validate all user inputs
-- Use HTTPS in production
-- Implement rate limiting for authentication endpoints
-- Regular security audits of dependencies
+## Security Implementation
 
-## Testing Strategy
-- Unit tests for all models
-- API endpoint testing
-- Authentication flow testing
-- Permission testing
-- Integration testing for complex workflows
-- Test data factories for consistent testing
+**Active Security Measures**:
+- Rate limiting on email actions (utils.py: check_rate_limit)
+- JWT token blacklist on logout
+- Password validation (8 char min, complexity)
+- Security headers (XSS filter, nosniff, X-Frame-Options)
+- CORS whitelist (no wildcards)
+- Email verification required for account activation
+
+**Production Checklist**:
+- Set DEBUG=False
+- Use strong SECRET_KEY and JWT_SECRET_KEY
+- Enable HTTPS and set secure cookie flags
+- Configure real SMTP (not console backend)
+- Enable PostgreSQL with strong credentials
+- Regular dependency updates (pip-audit)
+
+## Testing
+
+**Test Files**:
+- `test_api_endpoints.py` - API endpoint testing
+- `test_auth_flow.py` - Authentication workflow testing
+- `test_verification_model.py` - Email verification testing
+- `final_test_demo.py` - Demonstration test suite
+
+**Running Tests**:
+```bash
+# All tests
+python manage.py test
+
+# Specific app
+python manage.py test accounts
+python manage.py test base
+
+# Specific test file
+python test_auth_flow.py
+```
+
+**Test Coverage Areas**:
+- User model and custom managers
+- JWT authentication and refresh
+- Email verification rate limiting
+- Password reset workflows
+- API endpoint permissions
+- Serializer validation
+
+## Important Implementation Notes
+
+**Email Verification System**:
+- Uses 6-digit random codes (not JWT tokens)
+- Rate limiting: 3 attempts per 30 minutes
+- Implemented in accounts/utils.py (send_email, check_rate_limit)
+- Templates in back/templates/ directory
+
+**Celery Status**:
+- Redis and Celery configured in settings.py
+- **Missing**: back/back/celery.py needs to be created
+- Docker compose references wrong app name: "online_store" → should be "back"
+
+**File Paths** (BASE_DIR = parent.parent.parent):
+- Database: project_root/db.sqlite3
+- Logs: project_root/logs/
+- Templates: project_root/templates/ (not back/templates/)
+- Media: project_root/media/
+
+**Dependencies**:
+- Use requirements.txt (current: Django 5.2.5, DRF 3.16.1)
+- Pipfile is outdated (Django 5.0.1, DRF 3.14.0)
